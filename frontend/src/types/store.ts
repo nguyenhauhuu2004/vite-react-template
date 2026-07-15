@@ -10,9 +10,7 @@ export interface AuthState {
   signUp: (
     username: string,
     password: string,
-    email: string,
-    firstName: string,
-    lastName: string
+    phone: string,
   ) => Promise<void>;
   signIn: (username: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;

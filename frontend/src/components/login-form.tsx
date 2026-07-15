@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 
+type SignInFormValues = z.infer<typeof signInSchema>;
 
 import { z } from "zod";
 import { useForm } from "react-hook-form";

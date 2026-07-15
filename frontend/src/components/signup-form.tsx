@@ -20,10 +20,6 @@ const signUpSchema = z.object({
   username: z.string().min(3, "Tên đăng nhập phải có ít nhất 3 ký tự"),
   phone: z.string().regex(/^(0[1-9]|84[1-9])\d{8}$/, "Số điện thoại không hợp lệ"),
   password: z.string().min(6, "Mật khẩu phải có ít nhất 6 ký tự"),
-  confirmPassword: z.string().min(6, "Vui lòng xác nhận mật khẩu"),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Mật khẩu không khớp",
-  path: ["confirmPassword"],
 });
 
 type SignUpFormValues = z.infer<typeof signUpSchema>;
@@ -107,7 +103,7 @@ export function SignupForm({
                     <FieldLabel htmlFor="confirm-password">
                       Confirm Password
                     </FieldLabel>
-                    <Input id="confirm-password" type="password" required {...register("confirmPassword")} />
+                    <Input id="confirm-password" type="password" required  />
                     
                   </Field>
                 </Field>
