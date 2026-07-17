@@ -11,8 +11,8 @@ import {Separator} from "@/components/ui/separator"
 import Footer from "@/components/layout/footer"
 const navigationData: NavigationSection[] = [
   {
-    title: 'Home',
-    href: '#'
+    title: 'Tìm workshop',
+    href: '/workshops'
   },
   {
     title: 'Products',
