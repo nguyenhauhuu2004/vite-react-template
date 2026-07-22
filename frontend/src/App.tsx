@@ -32,7 +32,7 @@ function App() {
           {/* protectect routes */}
           <Route element={<ProtectedRoute />}>
             <Route path="/chatapp" element={<ChatAppPage />} />
-            <Route path="/createWorkshop" element={<CreateWorkshopPage />} />
+            <Route path="/workshops/create" element={<CreateWorkshopPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
