@@ -1,60 +1,49 @@
+import mongoose from "mongoose";
+
 const mediaSchema = new mongoose.Schema(
   {
     url: {
       type: String,
       required: true,
     },
+
     publicId: {
       type: String,
       required: true,
     },
+
     resourceType: {
       type: String,
       enum: ["image", "video"],
       required: true,
     },
   },
-  { _id: false },
+  {
+    _id: false,
+  },
 );
 
-const locationSchema = new mongoose.Schema(
+const scheduleSchema = new mongoose.Schema(
   {
-    address: {
+    date: {
+      type: Date,
+      required: true,
+    },
+
+    time: {
       type: String,
       required: true,
-      trim: true,
     },
 
-    placeId: {
-      type: String,
-      default: "",
-    },
-
-    notes: {
-      type: String,
-      default: "",
-    },
-
-    coordinates: {
-      type: {
-        type: String,
-        enum: ["Point"],
-        default: "Point",
-      },
-
-      coordinates: {
-        type: [Number],
-        required: true,
-        validate: {
-          validator(value) {
-            return Array.isArray(value) && value.length === 2;
-          },
-          message: "Tọa độ phải có dạng [longitude, latitude]",
-        },
-      },
+    spotsLeft: {
+      type: Number,
+      required: true,
+      min: 0,
     },
   },
-  { _id: false },
+  {
+    _id: false,
+  },
 );
 
 const workshopSchema = new mongoose.Schema(
@@ -69,24 +58,45 @@ const workshopSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+      maxlength: 150,
     },
 
     category: {
       type: String,
       required: true,
+      trim: true,
     },
 
     description: {
       type: String,
       required: true,
+      trim: true,
     },
 
-    thumbnail: mediaSchema,
-    gallery: [mediaSchema],
-    video: mediaSchema,
+    highlights: {
+      type: [String],
+      default: [],
+    },
 
-    highlights: [String],
-    includes: [String],
+    includes: {
+      type: [String],
+      default: [],
+    },
+
+    thumbnail: {
+      type: mediaSchema,
+      required: true,
+    },
+
+    gallery: {
+      type: [mediaSchema],
+      default: [],
+    },
+
+    video: {
+      type: mediaSchema,
+      default: null,
+    },
 
     price: {
       type: Number,
@@ -94,7 +104,10 @@ const workshopSchema = new mongoose.Schema(
       min: 0,
     },
 
-    duration: String,
+    duration: {
+      type: String,
+      required: true,
+    },
 
     seatsTotal: {
       type: Number,
@@ -105,19 +118,42 @@ const workshopSchema = new mongoose.Schema(
     level: {
       type: String,
       enum: ["Beginner", "Intermediate", "Advanced", "All Levels"],
+      default: "Beginner",
     },
 
-    schedules: [
-      {
-        date: Date,
-        time: String,
-        spotsLeft: Number,
-      },
-    ],
+    schedules: {
+      type: [scheduleSchema],
+      default: [],
+    },
 
     location: {
-      type: locationSchema,
-      required: true,
+      address: {
+        type: String,
+        required: true,
+      },
+
+      placeId: {
+        type: String,
+        default: "",
+      },
+
+      notes: {
+        type: String,
+        default: "",
+      },
+
+      coordinates: {
+        type: {
+          type: String,
+          enum: ["Point"],
+          default: "Point",
+        },
+
+        coordinates: {
+          type: [Number],
+          required: true,
+        },
+      },
     },
 
     status: {
@@ -130,6 +166,11 @@ const workshopSchema = new mongoose.Schema(
     timestamps: true,
   },
 );
+
 workshopSchema.index({
   "location.coordinates": "2dsphere",
 });
+
+const Workshop = mongoose.model("Workshop", workshopSchema);
+
+export default Workshop;

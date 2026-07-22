@@ -7,6 +7,7 @@ import cookieParser from "cookie-parser";
 import { protectedRoute } from "./middlewares/authMiddleware.js";
 import cors from "cors";
 import { v2 as cloudinary } from "cloudinary";
+import workshopRoutes from "./routes/workshopRoutes.js";
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ cloudinary.config({
 // public routes
 app.use("/api/auth", authRoute);
 
+app.use("/api/workshops", workshopRoutes);
 // private routes
 app.use(protectedRoute);
 app.use("/api/users", userRoute);

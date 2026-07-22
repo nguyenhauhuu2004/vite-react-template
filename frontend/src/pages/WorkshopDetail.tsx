@@ -1,218 +1,355 @@
-import  ThumbnailSlider, { type ProductMedia }  from "@/components/thumnailslider";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
+import ThumbnailSlider, {
+  type ProductMedia,
+} from "@/components/thumnailslider";
 import BookingCard, {
   type BookingData,
   type BookingSession,
 } from "@/components/BookingCard";
 import WorkshopContent from "@/components/WorkshopContent";
+import WorkshopMap, { type WorkshopLocation } from "@/components/workshopmap";
 
+import { workshopService } from "@/services/workshopService";
 
-const sessions: BookingSession[] = [
-  {
-    id: 1,
-    date: "2026-07-20",
-    time: "09:00 - 11:00",
-    remaining: 8,
-  },
-  {
-    id: 2,
-    date: "2026-07-20",
-    time: "13:00 - 15:00",
-    remaining: 3,
-  },
-  {
-    id: 3,
-    date: "2026-07-20",
-    time: "16:00 - 18:00",
-    remaining: 0,
-  },
-  {
-    id: 4,
-    date: "2026-07-21",
-    time: "09:00 - 11:00",
-    remaining: 10,
-  },
-  {
-    id: 5,
-    date: "2026-07-21",
-    time: "14:00 - 16:00",
-    remaining: 5,
-  },
-];
-
-const media: ProductMedia[] = [
-  {
-    id: 1,
-    type: "image",
-    src: "https://www.mykingdom.com.vn/cdn/shop/articles/workshop-thu-cong-gia-dinh_34975b98-b042-48d7-a3c0-527ce9abab57.jpg",
-    alt: "iPhone mặt trước",
-  },
-  {
-    id: 2,
-    type: "image",
-    src: "https://dinos.vn/wp-content/uploads/2024/04/workshop-la-gi-1.jpg",
-    alt: "iPhone mặt sau",
-  },
-  {
-    id: 3,
-    type: "video",
-    src: "https://www.pexels.com/download/video/7520877/",
-    poster: "https://dinos.vn/wp-content/uploads/2024/04/workshop-la-gi-1.jpg",
-    alt: "Video giới thiệu iPhone",
-    autoPlay: false,
-    muted: true,
-    loop: true,
-  },
-  {
-    id: 1,
-    type: "image",
-    src: "https://www.mykingdom.com.vn/cdn/shop/articles/workshop-thu-cong-gia-dinh_34975b98-b042-48d7-a3c0-527ce9abab57.jpg",
-    alt: "iPhone mặt trước",
-  },
-  {
-    id: 2,
-    type: "image",
-    src: "https://dinos.vn/wp-content/uploads/2024/04/workshop-la-gi-1.jpg",
-    alt: "iPhone mặt sau",
-  },
-  {
-    id: 1,
-    type: "image",
-    src: "https://www.mykingdom.com.vn/cdn/shop/articles/workshop-thu-cong-gia-dinh_34975b98-b042-48d7-a3c0-527ce9abab57.jpg",
-    alt: "iPhone mặt trước",
-  },
-  {
-    id: 2,
-    type: "image",
-    src: "https://dinos.vn/wp-content/uploads/2024/04/workshop-la-gi-1.jpg",
-    alt: "iPhone mặt sau",
-  },
-];
-
-
-import WorkshopMap, {
-  type WorkshopLocation,
-} from "@/components/workshopmap";
-
-const currentWorkshop: WorkshopLocation = {
-  id: 1,
-  title: "Workshop làm gốm thủ công",
-  address: "123 Nguyễn Huệ, Quận 1, TP.HCM",
-  latitude: 10.7731,
-  longitude: 106.7032,
-  image: "/images/workshops/pottery.jpg",
-  price: 500_000,
+type WorkshopMedia = {
+  url: string;
+  publicId: string;
+  resourceType: "image" | "video";
 };
 
-const nearbyWorkshops: WorkshopLocation[] = [
-  {
-    id: 2,
-    title: "Workshop vẽ tranh acrylic",
-    address: "45 Lê Lợi, Quận 1, TP.HCM",
-    latitude: 10.7745,
-    longitude: 106.7019,
-    image: "/images/workshops/painting.jpg",
-    price: 350_000,
-  },
-  {
-    id: 3,
-    title: "Workshop làm nến thơm",
-    address: "80 Pasteur, Quận 1, TP.HCM",
-    latitude: 10.7762,
-    longitude: 106.7003,
-    image: "/images/workshops/candle.jpg",
-    price: 420_000,
-  },
-  {
-    id: 4,
-    title: "Workshop làm bánh",
-    address: "15 Đồng Khởi, Quận 1, TP.HCM",
-    latitude: 10.775,
-    longitude: 106.705,
-    image: "/images/workshops/baking.jpg",
-    price: 600_000,
-  },
-];
+type WorkshopSchedule = {
+  _id?: string;
+  date: string;
+  time: string;
+  spotsLeft: number;
+};
 
+type WorkshopDetailData = {
+  _id: string;
+  title: string;
+  category: string;
+  description: string;
+  highlights: string[];
+  includes: string[];
 
+  thumbnail: WorkshopMedia | null;
+  gallery: WorkshopMedia[];
+  video: WorkshopMedia | null;
 
-export function WorkshopDetail() {
-    
-const handleBook = (booking: BookingData) => {
-    console.log("Booking:", booking);
+  price: number;
+  duration: string;
+  seatsTotal: number;
+  level: string;
 
-    // Gọi API hoặc chuyển sang trang checkout tại đây.
+  schedules: WorkshopSchedule[];
+
+  location: {
+    address: string;
+    notes?: string;
+    coordinates: {
+      type: "Point";
+      coordinates: [number, number];
+    };
   };
 
+  host?: {
+    _id: string;
+    displayName: string;
+    avatarUrl?: string;
+  };
+};
 
+export function WorkshopDetail() {
+  const { id } = useParams<{ id: string }>();
 
+  const [workshop, setWorkshop] = useState<WorkshopDetailData | null>(null);
+  const [nearbyWorkshops, setNearbyWorkshops] = useState<WorkshopDetailData[]>(
+    [],
+  );
+  const [loading, setLoading] = useState(true);
+  // const [booking, setBooking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!id) {
+      setError("Không tìm thấy mã workshop");
+      setLoading(false);
+      return;
+    }
+
+    const loadWorkshop = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const workshopData = await workshopService.getWorkshop(id);
+
+        setWorkshop(workshopData);
+
+        const longitude = workshopData.location?.coordinates?.coordinates?.[0];
+
+        const latitude = workshopData.location?.coordinates?.coordinates?.[1];
+
+        if (typeof longitude === "number" && typeof latitude === "number") {
+          try {
+            const nearby = await workshopService.getNearbyWorkshops({
+              longitude,
+              latitude,
+              distance: 10_000,
+              excludeId: workshopData._id,
+            });
+
+            setNearbyWorkshops(nearby);
+          } catch (nearbyError) {
+            console.error("Không thể tải workshop gần đây:", nearbyError);
+          }
+        }
+      } catch (loadError) {
+        console.error("Load workshop error:", loadError);
+        setError("Không thể tải thông tin workshop");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadWorkshop();
+  }, [id]);
+
+  const media = useMemo<ProductMedia[]>(() => {
+    if (!workshop) return [];
+
+    const result: ProductMedia[] = [];
+
+    if (workshop.thumbnail?.url) {
+      result.push({
+        id: workshop.thumbnail.publicId,
+        type: "image",
+        src: workshop.thumbnail.url,
+        alt: workshop.title,
+      });
+    }
+
+    workshop.gallery?.forEach((item, index) => {
+      result.push({
+        id: item.publicId || `gallery-${index}`,
+        type: "image",
+        src: item.url,
+        alt: `${workshop.title} - hình ${index + 1}`,
+      });
+    });
+
+    if (workshop.video?.url) {
+      result.push({
+        id: workshop.video.publicId,
+        type: "video",
+        src: workshop.video.url,
+        poster: workshop.thumbnail?.url ?? "",
+        alt: `Video giới thiệu ${workshop.title}`,
+        // controls: true,
+        autoPlay: false,
+        muted: false,
+        loop: false,
+      });
+    }
+
+    return result;
+  }, [workshop]);
+
+  const sessions = useMemo<BookingSession[]>(() => {
+    if (!workshop) return [];
+
+    return workshop.schedules.map((session, index) => ({
+      id: session._id ?? `${session.date}-${session.time}-${index}`,
+      date: session.date,
+      time: session.time,
+      remaining: session.spotsLeft,
+    }));
+  }, [workshop]);
+
+  const currentWorkshop = useMemo<WorkshopLocation | null>(() => {
+    if (!workshop) return null;
+
+    const [longitude, latitude] = workshop.location.coordinates.coordinates;
+
+    return {
+      id: workshop._id,
+      title: workshop.title,
+      address: workshop.location.address,
+      latitude,
+      longitude,
+      image: workshop.thumbnail?.url ?? "",
+      price: workshop.price,
+    };
+  }, [workshop]);
+
+  const nearbyMapData = useMemo<WorkshopLocation[]>(() => {
+    return nearbyWorkshops
+      .filter(
+        (item) =>
+          Array.isArray(item.location?.coordinates?.coordinates) &&
+          item.location.coordinates.coordinates.length === 2,
+      )
+      .map((item) => {
+        const [longitude, latitude] = item.location.coordinates.coordinates;
+
+        return {
+          id: item._id,
+          title: item.title,
+          address: item.location.address,
+          latitude,
+          longitude,
+          image: item.thumbnail?.url ?? "",
+          price: item.price,
+        };
+      });
+  }, [nearbyWorkshops]);
+
+  const handleBook = async (bookingData: BookingData) => {
+    if (!workshop) return;
+
+    try {
+      // setBooking(true);
+
+      await workshopService.createBooking({
+        workshopId: workshop._id,
+        sessionId: String(bookingData.session),
+        quantity: bookingData.quantity,
+      });
+
+      toast.success("Đặt chỗ thành công");
+    } catch (bookingError) {
+      console.error("Booking error:", bookingError);
+      toast.error("Không thể đặt chỗ");
+    } finally {
+      // setBooking(false);
+    }
+  };
+
+  if (loading) {
     return (
-        <div className="container mx-auto grid grid-cols-1 gap-8 lg:grid-cols-3">
-            <div className="col-span-2">
-                <ThumbnailSlider media={media} />
-                <h1 className="text-3xl font-bold">Tiêu đề của workshop</h1>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
-                <p>
-                    Bạn có bao giờ cảm thấy mình quá bận rộn với guồng quay công việc mà quên mất việc dành thời gian cho những sở thích cá nhân?
+  if (error || !workshop) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center px-4">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">Không tìm thấy workshop</h1>
 
-Hãy tạm gác lại những lo toan thường nhật để bước vào không gian của [Tên Workshop]. Đây không chỉ là một buổi học đơn thuần, mà là nơi bạn được tự do thử nghiệm, sáng tạo và kết nối với những tâm hồn đồng điệu.
+          <p className="mt-2 text-muted-foreground">
+            {error ?? "Workshop không tồn tại hoặc đã bị xóa."}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-Bạn sẽ nhận được gì sau buổi workshop?
+  return (
+    <main className="mx-auto w-full max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0">
+          {media.length > 0 && <ThumbnailSlider media={media} />}
 
-Kỹ năng thực tế: Nắm vững các bước cơ bản từ [Kỹ năng 1] đến [Kỹ năng 2].
+          <section className="mt-8">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
+                {workshop.category}
+              </span>
 
-Sản phẩm cá nhân: Tự tay hoàn thiện và mang về một [Tên sản phẩm, ví dụ: bức tranh canvas/chiếc nến thơm] do chính bạn làm ra.
-
-Trải nghiệm thư giãn: Những phút giây lắng đọng, thưởng thức trà bánh và trò chuyện cùng mọi người.
-
-Thông tin chi tiết:
-
-Thời gian: [Giờ, Ngày/Tháng/Năm]
-
-Địa điểm: [Tên quán cafe/Studio + Địa chỉ]
-
-Chi phí tham gia: [Số tiền] VNĐ/người (Đã bao gồm toàn bộ nguyên vật liệu và một phần nước).
-
-Số lượng giới hạn: Để đảm bảo chất lượng hướng dẫn, workshop chỉ nhận tối đa [Số lượng] bạn.
-
-[ĐĂNG KÝ NGAY TẠI ĐÂY] (Link đăng ký)
-
-Hạn chót đăng ký: [Ngày/Tháng] (Hoặc khi đủ số lượng).
-                </p>
-              
-                <WorkshopContent content={"contentData.content"} />
-
-
-<section className="mt-10 border-t pt-8">
-        <h2 className="text-2xl font-semibold">
-          Vị trí workshop
-        </h2>
-
-        <p className="mt-2 text-sm text-neutral-500">
-          Xem workshop hiện tại và các workshop khác ở gần đó.
-        </p>
-
-        <WorkshopMap
-          currentWorkshop={currentWorkshop}
-          nearbyWorkshops={nearbyWorkshops}
-          className="mt-5"
-          onWorkshopClick={(workshop) => {
-            console.log("Workshop đã chọn:", workshop);
-          }}
-        />
-      </section>
+              <span className="rounded-full bg-muted px-3 py-1 text-sm">
+                {workshop.level}
+              </span>
             </div>
 
-                <BookingCard
-                className="h-fit"
-        pricePerPerson={500_000}
-        sessions={sessions}
-        taxRate={0.08}
-        location="123 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh"
-                onBook={handleBook}
+            <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
+              {workshop.title}
+            </h1>
 
-      />
+            {workshop.host && (
+              <div className="mt-4 flex items-center gap-3">
+                {workshop.host.avatarUrl ? (
+                  <img
+                    src={workshop.host.avatarUrl}
+                    alt={workshop.host.displayName}
+                    className="size-10 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex size-10 items-center justify-center rounded-full bg-primary text-white">
+                    {workshop.host.displayName?.charAt(0).toUpperCase()}
+                  </div>
+                )}
 
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    Được tổ chức bởi
+                  </p>
 
+                  <p className="font-medium">{workshop.host.displayName}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-8 whitespace-pre-line text-base leading-7 text-muted-foreground">
+              {workshop.description}
+            </div>
+          </section>
+
+          <WorkshopContent
+            // content={{
+            //   highlights: workshop.highlights,
+            //   includes: workshop.includes,
+            //   duration: workshop.duration,
+            //   level: workshop.level,
+            //   seatsTotal: workshop.seatsTotal,
+            // }}
+            content={"demo"}
+          />
+
+          {currentWorkshop && (
+            <section className="mt-10 border-t pt-8">
+              <h2 className="text-2xl font-semibold">Vị trí workshop</h2>
+
+              <p className="mt-2 text-sm text-muted-foreground">
+                {workshop.location.address}
+              </p>
+
+              {workshop.location.notes && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Ghi chú: {workshop.location.notes}
+                </p>
+              )}
+
+              <WorkshopMap
+                currentWorkshop={currentWorkshop}
+                nearbyWorkshops={nearbyMapData}
+                className="mt-5"
+                onWorkshopClick={(selectedWorkshop) => {
+                  window.location.href = `/workshops/${selectedWorkshop.id}`;
+                }}
+              />
+            </section>
+          )}
         </div>
-    );
+
+        <aside className="lg:sticky lg:top-24 lg:h-fit">
+          <BookingCard
+            className="h-fit"
+            pricePerPerson={workshop.price}
+            sessions={sessions}
+            taxRate={0.08}
+            location={workshop.location.address}
+            onBook={handleBook}
+            // disabled={booking}
+          />
+        </aside>
+      </div>
+    </main>
+  );
 }

@@ -18,7 +18,12 @@ import {
 import { WORKSHOPS, CATEGORIES } from "../data";
 import WorkshopMediaUploader from "@/components/WorkshopMediaUploader";
 import LocationPicker from "@/components/LocationPicker";
-import api from "@/lib/axios";
+import { toast } from "sonner";
+import type { WorkshopFormData } from "@/types/workshop";
+import {
+  workshopService,
+  type WorkshopPayload,
+} from "@/services/workshopService";
 
 type WorkshopMedia = {
   url: string;
@@ -62,32 +67,37 @@ export function CreateWorkshopPage() {
   const [saving, setSaving] = useState(false);
   const [published, setPublished] = useState(false);
 
-  const [form, setForm] = useState({
-    title: existing?.title || "",
-    category: existing?.category || CATEGORIES[0].name,
-    description: existing?.description || "",
-    highlights: existing?.highlights || [""],
-    gradient: existing?.gradient || GRADIENTS[0],
-    price: existing?.price?.toString() || "",
-    duration: existing?.duration || "",
-    seats: existing?.seatsTotal?.toString() || "",
-    level: existing?.level || "Beginner",
-    includes: existing?.includes || [""],
+  const [form, setForm] = useState<WorkshopFormData>({
+    title: "",
+    category: CATEGORIES[0].name,
+    description: "",
+    highlights: [""],
+    gradient: GRADIENTS[0],
+    price: "",
+    duration: "",
+    seats: "",
+    level: "Beginner",
+    includes: [""],
 
-    thumbnail: null as WorkshopMedia | null,
-    gallery: [] as WorkshopMedia[],
-    video: null as WorkshopMedia | null,
+    thumbnail: null,
+    gallery: [],
+    video: null,
 
-    schedules:
-      existing?.schedules ||
-      ([{ date: "", time: "10:00 AM", spotsLeft: 0 }] as Schedule[]),
+    schedules: [
+      {
+        date: "",
+        time: "10:00",
+        spotsLeft: 0,
+      },
+    ],
+
     location: {
       address: "",
       latitude: null,
       longitude: null,
       placeId: "",
       notes: "",
-    } as WorkshopLocation,
+    },
   });
 
   function setField<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
@@ -134,49 +144,134 @@ export function CreateWorkshopPage() {
       schedules: f.schedules.filter((_, idx) => idx !== i),
     }));
   }
+  function validateCurrentStep() {
+    if (step === 0) {
+      if (!form.title.trim()) {
+        toast.error("Vui lòng nhập tên workshop");
+        return false;
+      }
 
-  async function handlePublish() {
-    try {
-      setSaving(true);
+      if (!form.description.trim()) {
+        toast.error("Vui lòng nhập mô tả");
+        return false;
+      }
 
+      if (!form.thumbnail) {
+        toast.error("Vui lòng upload ảnh đại diện");
+        return false;
+      }
+    }
+
+    if (step === 1) {
+      if (Number(form.price) < 0) {
+        toast.error("Giá workshop không hợp lệ");
+        return false;
+      }
+
+      if (Number(form.seats) < 1) {
+        toast.error("Số lượng học viên không hợp lệ");
+        return false;
+      }
+
+      if (!form.duration.trim()) {
+        toast.error("Vui lòng nhập thời lượng");
+        return false;
+      }
+    }
+
+    if (step === 2) {
+      const validSchedules = form.schedules.filter(
+        (schedule) => schedule.date && schedule.time,
+      );
+
+      if (!validSchedules.length) {
+        toast.error("Vui lòng thêm lịch workshop");
+        return false;
+      }
+    }
+
+    if (step === 3) {
       if (
         !form.location.address ||
         form.location.latitude === null ||
         form.location.longitude === null
       ) {
-        setStep(3);
-        return;
-      }
+        toast.error("Vui lòng chọn địa điểm trên bản đồ");
 
-      const payload = {
-        ...form,
-        price: Number(form.price),
-        seatsTotal: Number(form.seats),
+        return false;
+      }
+    }
+
+    return true;
+  }
+  const handleNextStep = () => {
+    if (!validateCurrentStep()) return;
+
+    setStep((current) => Math.min(current + 1, 4) as Step);
+  };
+
+  async function handlePublish() {
+    if (!validateCurrentStep()) return;
+
+    if (
+      !form.thumbnail ||
+      form.location.longitude === null ||
+      form.location.latitude === null
+    ) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const payload: WorkshopPayload = {
+        title: form.title.trim(),
+        category: form.category,
+        description: form.description.trim(),
+        gradient: form.gradient,
+
+        thumbnail: form.thumbnail,
+        gallery: form.gallery,
+        video: form.video,
 
         highlights: form.highlights.map((item) => item.trim()).filter(Boolean),
 
         includes: form.includes.map((item) => item.trim()).filter(Boolean),
 
+        price: Number(form.price),
+        duration: form.duration.trim(),
+        seatsTotal: Number(form.seats),
+        level: form.level,
+
+        schedules: form.schedules
+          .filter((schedule) => schedule.date && schedule.time)
+          .map((schedule) => ({
+            ...schedule,
+            spotsLeft: schedule.spotsLeft || Number(form.seats),
+          })),
+
         location: {
           address: form.location.address,
+          placeId: form.location.placeId,
+          notes: form.location.notes,
+
           coordinates: {
             type: "Point",
             coordinates: [form.location.longitude, form.location.latitude],
           },
-          placeId: form.location.placeId,
-          notes: form.location.notes,
         },
       };
 
-      if (isEdit) {
-        await api.patch(`/workshops/${id}`, payload);
-      } else {
-        await api.post("/workshops", payload);
-      }
+      const result = isEdit
+        ? await workshopService.updateWorkshop(id!, payload)
+        : await workshopService.createWorkshop(payload);
+
+      console.log("Workshop result:", result);
 
       setPublished(true);
     } catch (error) {
-      console.error("Không thể lưu workshop:", error);
+      console.error("Publish workshop error:", error);
+      toast.error("Không thể lưu workshop");
     } finally {
       setSaving(false);
     }
@@ -362,38 +457,30 @@ export function CreateWorkshopPage() {
                     </button>
                   </div>
                 </div>
-                <div className="space-y-3">
-                  <label className="label-style">Ảnh đại diện workshop</label>
+                <WorkshopMediaUploader
+                  label="Ảnh đại diện workshop"
+                  accept="image"
+                  maxFiles={1}
+                  value={form.thumbnail ? [form.thumbnail] : []}
+                  onChange={(media) => setField("thumbnail", media[0] ?? null)}
+                />
 
-                  <WorkshopMediaUploader
-                    accept="image"
-                    value={form.thumbnail ? [form.thumbnail] : []}
-                    onChange={(media) =>
-                      setField("thumbnail", media[0] ?? null)
-                    }
-                  />
-                </div>
+                <WorkshopMediaUploader
+                  label="Thư viện hình ảnh"
+                  accept="image"
+                  multiple
+                  maxFiles={8}
+                  value={form.gallery}
+                  onChange={(media) => setField("gallery", media)}
+                />
 
-                <div className="space-y-3">
-                  <label className="label-style">Thư viện hình ảnh</label>
-
-                  <WorkshopMediaUploader
-                    accept="image"
-                    multiple
-                    value={form.gallery}
-                    onChange={(media) => setField("gallery", media)}
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <label className="label-style">Video giới thiệu</label>
-
-                  <WorkshopMediaUploader
-                    accept="video"
-                    value={form.video ? [form.video] : []}
-                    onChange={(media) => setField("video", media[0] ?? null)}
-                  />
-                </div>
+                <WorkshopMediaUploader
+                  label="Video giới thiệu"
+                  accept="video"
+                  maxFiles={1}
+                  value={form.video ? [form.video] : []}
+                  onChange={(media) => setField("video", media[0] ?? null)}
+                />
               </div>
             )}
 
@@ -557,11 +644,15 @@ export function CreateWorkshopPage() {
 
             {step === 3 && (
               <div className="space-y-6">
-                <h2 className="text-xl font-black text-[#0D0D1A]">Địa điểm</h2>
+                <div>
+                  <h2 className="text-xl font-black text-[#0D0D1A]">
+                    Địa điểm workshop
+                  </h2>
 
-                <p className="text-sm text-gray-400">
-                  Nhập địa chỉ hoặc click trực tiếp lên bản đồ.
-                </p>
+                  <p className="mt-1 text-sm text-gray-400">
+                    Tìm kiếm địa chỉ hoặc click trực tiếp lên bản đồ.
+                  </p>
+                </div>
 
                 <LocationPicker
                   value={form.location}
@@ -606,6 +697,39 @@ export function CreateWorkshopPage() {
                         {form.seats} max
                       </span>
                     )}
+                  </div>
+                  <div className="overflow-hidden rounded-2xl border">
+                    {form.thumbnail ? (
+                      <img
+                        src={form.thumbnail.url}
+                        alt={form.title}
+                        className="aspect-video w-full object-cover"
+                      />
+                    ) : (
+                      <div
+                        className={`flex aspect-video items-center justify-center bg-gradient-to-br ${form.gradient}`}
+                      >
+                        <span className="text-white">Chưa có ảnh đại diện</span>
+                      </div>
+                    )}
+
+                    <div className="p-5">
+                      <span className="text-sm font-semibold text-violet-600">
+                        {form.category}
+                      </span>
+
+                      <h3 className="mt-2 text-xl font-bold">
+                        {form.title || "Workshop title"}
+                      </h3>
+
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {form.description || "Workshop description"}
+                      </p>
+
+                      <p className="mt-3 text-sm">
+                        {form.location.address || "Chưa chọn địa điểm"}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -679,7 +803,7 @@ export function CreateWorkshopPage() {
 
           {step < STEPS.length - 1 ? (
             <motion.button
-              onClick={() => setStep((step + 1) as Step)}
+              onClick={handleNextStep}
               whileHover={{
                 scale: 1.03,
                 boxShadow: "0 12px 40px rgba(124,58,237,0.35)",
