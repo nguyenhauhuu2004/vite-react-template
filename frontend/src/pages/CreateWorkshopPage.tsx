@@ -15,7 +15,7 @@ import {
   Calendar,
   Eye,
 } from "lucide-react";
-import { WORKSHOPS, CATEGORIES } from "../data";
+import { CATEGORIES } from "../data";
 import WorkshopMediaUploader from "@/components/WorkshopMediaUploader";
 import LocationPicker from "@/components/LocationPicker";
 import { toast } from "sonner";
